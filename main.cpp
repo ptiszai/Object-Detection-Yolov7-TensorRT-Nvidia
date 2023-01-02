@@ -3,6 +3,7 @@
 //https://docs.nvidia.com/cuda/cuda-runtime-api/index.html
 #include <opencv2/opencv.hpp>
 #include "utils.h"
+#include"yolo7_normal.h"
 
 using namespace std;
 using namespace cv;
@@ -94,9 +95,89 @@ int main(int argc, const char** argv) {
 		}
 		cout << "image:" << image_name << endl;
 	}
+	else 
+	if (!video_name.empty()) {
+		video_path = path_name + "/" + video_name;
+		string ext = std::filesystem::path(video_path).extension().string();
+		if (ext == ".mp4") {
+			mp4 = true;
+		}
+		else {
+			cout << "video ext. is not mp4" << video_name << endl;
+			return 1;
+		}
+		if (!filesystem::exists(video_path)) {
+			cout << "ERROR: video file not exist" << endl;
+			return 1;
+		}
+		cout << "video:" << video_name << endl;
+	}
 	else {
+		cout << "ERROR:image name or video name is empty" << endl;
+		return 1;
+	}
+
+	Yolo7_normal* yolo7_normal = NULL;
+	if (!end2end) {
+		yolo7_normal = new Yolo7_normal(model_path);
 
 	}
+	/*std::vector<std::string> class_names = utils.LoadNames(class_path);//read classes
+	if (class_names.empty()) {
+		cout << "LoadNames is failed:" << class_path << endl;
+		return false;
+	}
+	if (yolov7.readModel(net, model_path, class_names, config_path, gpu)) {
+		cout << "read net ok!" << endl;
+		net.setPreferableBackend(backend);
+		net.setPreferableTarget(target);
+	}
+	else {
+		cout << "read onnx model failed!";
+		return -1;
+	}
+	*/
+
+	namedWindow(WinName, WINDOW_NORMAL);
+	VideoCapture cap;
+	VideoWriter video_raw;
+
+	// one image
+	if (image) { 
+		// Open an image file.
+		Mat img = imread(img_path);
+		utils.Timer(true);
+
+	}
+	else
+	// video
+	if (mp4) {
+		// Open a video file or an image file.		
+		cap.open(video_path);
+		if (!cap.isOpened()) {
+			cerr << "ERRON:Unable to open video" << endl;
+			return -1;
+		}
+		if (wr) {
+			int frame_width = (int)cap.get(cv::CAP_PROP_FRAME_WIDTH);
+			int frame_height = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+			string filename = std::filesystem::path(video_path).stem().string();
+			if (!video_raw.open(filename + "_o.mp4", cv::VideoWriter::fourcc('M', 'P', '4', 'V'), 10, Size(frame_width, frame_height))) {
+				cout << "ERRON:VideoWriter opened failed!" << endl;
+				return 1;
+			}
+		}
+	}
+	
 	cout << "Success" << endl;
+	
+	if (cap.isOpened()) {
+		cap.release();
+	}
+	if (video_raw.isOpened()) {
+		video_raw.release();
+	}
+	//system("pause");		
+	return 0;
 }
 
