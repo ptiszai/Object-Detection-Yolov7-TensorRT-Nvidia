@@ -11,7 +11,7 @@ using namespace cv;
 static const std::string WinName = "Deep learning object detection in Nvidia";
 static const char* keys =
 {
-	"{help h ?| | show help message}{model|| <x.rt> model_trt.engine}{image|| <*.png,jpg,bmp> image file}{video|| <*.mp4>}{path|.| path to file}{wr|0|writing to file}{gpu|1| Default gpu }{end2end|0| Default normal }"
+	"{help h ?| | show help message}{model|| <x.rt> model_trt.engine}{class_names|coco_classes.txt|class names file}{image|| <*.png,jpg,bmp> image file}{video|| <*.mp4>}{path|.| path to file}{wr|0|writing to file}{gpu|1| Default gpu }{end2end|0| Default normal }"
 };
 
 // functions
@@ -30,10 +30,10 @@ static void help(int argc, const char** argv)
 int main(int argc, const char** argv) {
 	/* Examples:
 		"ImageDetector-yolov7-tensorRT.exe -h"
-		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -image=images/bus.jpg" // normal, not end2end, gpu, only read image
-		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny.trt -image=images/bus.jpg -end2end=1 -wr=1" // normal, end2end, gpu, created out image bus_e2e.jpg
-		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -image=images/bus.jpg  -wr=1" // normal, not end2end, gpu,  created out image bus_norm.jpg
-		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -video=images/images/cat.mp4" // normal, not end2end, gpu, only read video
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg" // normal, not end2end, gpu, only read image
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny.trt -class_names=models/coco_classes.txt -image=images/bus.jpg -end2end=1 -wr=1" // normal, end2end, gpu, created out image bus_e2e.jpg
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg  -wr=1" // normal, not end2end, gpu,  created out image bus_norm.jpg
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -video=images/images/cat.mp4" // normal, not end2end, gpu, only read video
 		etc.
 	*/
 	cv::CommandLineParser parser(argc, argv, keys);
@@ -54,9 +54,17 @@ int main(int argc, const char** argv) {
 	string model_name = parser.get<string>("model");
 	string model_path = path_name + "/" + model_name;
 	if (!filesystem::exists(model_path)) {
-		cout << "ERROR: model file not exist" << endl;
-		return 1;
+		cerr << "ERROR: model file not exist" << endl;
+		return -1;
 	}
+
+	string class_names = parser.get<string>("class_names");
+	string classes_path = path_name + "/" + class_names;
+	if (!filesystem::exists(classes_path)) {
+		cerr << "ERROR: classes file not exist" << endl;
+		return -1;
+	}
+
 
 	string image_name = parser.get<string>("image");	
 	string video_name = parser.get<string>("video");
@@ -73,7 +81,7 @@ int main(int argc, const char** argv) {
 	if (gpu) {
 		if (utils.GetCurrentCUDADevice() < 0)
 		{
-			cout << "not founded GPU or/and CUDA" << endl;
+			cerr << "ERROR: not founded GPU or/and CUDA" << endl;
 			return -1;
 		}
 		utils.GetCurrentCUDADeviceProperties();
@@ -86,12 +94,12 @@ int main(int argc, const char** argv) {
 			image = true;
 		}
 		else {
-			cout << "image ext. is not png or jpg or bmp" << video_name << endl;
-			return 1;
+			cerr << "ERROR: image ext. is not png or jpg or bmp" << video_name << endl;
+			return -1;
 		}
 		if (!filesystem::exists(img_path)) {
-			cout << "ERROR: image file not exist" << endl;
-			return 1;
+			cerr << "ERROR: image file not exist" << endl;
+			return -1;
 		}
 		cout << "image:" << image_name << endl;
 	}
@@ -103,23 +111,29 @@ int main(int argc, const char** argv) {
 			mp4 = true;
 		}
 		else {
-			cout << "video ext. is not mp4" << video_name << endl;
-			return 1;
+			cerr << "ERROR: video ext. is not mp4" << video_name << endl;
+			return -1;
 		}
 		if (!filesystem::exists(video_path)) {
-			cout << "ERROR: video file not exist" << endl;
-			return 1;
+			cerr << "ERROR: video file not exist" << endl;
+			return -1;
 		}
 		cout << "video:" << video_name << endl;
 	}
 	else {
-		cout << "ERROR:image name or video name is empty" << endl;
-		return 1;
+		cerr << "ERROR:image name or video name is empty" << endl;
+		return -1;
 	}
 
 	Yolo7_normal* yolo7_normal = NULL;
 	if (!end2end) {
-		yolo7_normal = new Yolo7_normal(model_path);
+		yolo7_normal = new Yolo7_normal(classes_path);
+		if (!yolo7_normal->readModel(model_path)) {
+			cerr << "ERROR: model read failer:" << model_path << endl;
+			return -1;			
+		}
+	}
+	else {
 
 	}
 	/*std::vector<std::string> class_names = utils.LoadNames(class_path);//read classes
@@ -146,8 +160,22 @@ int main(int argc, const char** argv) {
 	if (image) { 
 		// Open an image file.
 		Mat img = imread(img_path);
-		utils.Timer(true);
+		if (img.total() == 0) {
+			cerr << "ERRON:image array length == 0" << endl;
+			return -1;
+		}
 
+		utils.Timer(true);
+		if (!end2end) {
+			vector<Object> objects = yolo7_normal->detect_img(img);
+			if (objects.empty()) {
+				cerr << "ERRON:image objects vector length == 0" << endl;
+				return -1;
+			}
+			Mat imag = yolo7_normal->drawPreds(img, objects);
+			imshow(WinName, imag);
+			waitKey(0);
+		}
 	}
 	else
 	// video
@@ -163,8 +191,8 @@ int main(int argc, const char** argv) {
 			int frame_height = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
 			string filename = std::filesystem::path(video_path).stem().string();
 			if (!video_raw.open(filename + "_o.mp4", cv::VideoWriter::fourcc('M', 'P', '4', 'V'), 10, Size(frame_width, frame_height))) {
-				cout << "ERRON:VideoWriter opened failed!" << endl;
-				return 1;
+				cerr << "ERRON: VideoWriter opened failed!" << endl;
+				return -1;
 			}
 		}
 	}
