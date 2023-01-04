@@ -87,18 +87,18 @@ std::string Utils::Timer(bool start)
 	return result; // ms
 }
 
-cv::Mat Utils::static_resize(cv::Mat& img, int input_w, int input_h) {
-	float r = std::min(input_w / (img.cols * 1.0), input_h / (img.rows * 1.0));
+Mat Utils::static_resize(cv::Mat& img, int input_w, int input_h) {
+	float r = min(input_w / (img.cols * 1.0), input_h / (img.rows * 1.0));
 	int unpad_w = r * img.cols;
 	int unpad_h = r * img.rows;
-	cv::Mat re(unpad_h, unpad_w, CV_8UC3);
-	cv::resize(img, re, re.size());
-	cv::Mat out(input_w, input_h, CV_8UC3, cv::Scalar(114, 114, 114));
-	re.copyTo(out(cv::Rect(0, 0, re.cols, re.rows)));
+	Mat re(unpad_h, unpad_w, CV_8UC3);	
+	resize(img, re, re.size());
+	Mat out(input_w, input_h, CV_8UC3, Scalar(114, 114, 114));
+	re.copyTo(out(Rect(0, 0, re.cols, re.rows)));	
 	return out;
 }
 
-float* Utils::blobFromImage(cv::Mat& img) {
+float* Utils::blobFromImage(Mat& img) {
 	cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
 
 	float* blob = new float[img.total() * 3];

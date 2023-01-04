@@ -10,7 +10,7 @@ using namespace nvinfer1;
 
 class Yolo7_normal {
 public:
-    Yolo7_normal(std::string& engine_file_path);
+    Yolo7_normal(std::string& engine_file_path, Utils* utils_a);
     ~Yolo7_normal();
     bool readModel(std::string& engine_file_path);
     std::vector<Object> detect_img(cv::Mat& img);
@@ -33,5 +33,4 @@ private:
     IExecutionContext* context;
     bool doInference(IExecutionContext& context, float* input, float* output, const int output_size, cv::Size input_shape);
     void decode_outputs(float* prob, int output_size, std::vector<Object>& objects, float scale, const int img_w, const int img_h);
-
 };

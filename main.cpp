@@ -1,18 +1,66 @@
 #include <iostream>
 #include <filesystem>
-//https://docs.nvidia.com/cuda/cuda-runtime-api/index.html
+#include <thread>
+#include <semaphore>
 #include <opencv2/opencv.hpp>
 #include "utils.h"
 #include"yolo7_normal.h"
+#include "QueueFPS.hpp"
+
+//https://docs.nvidia.com/cuda/cuda-runtime-api/index.html
 
 using namespace std;
 using namespace cv;
 
-static const std::string WinName = "Deep learning object detection in Nvidia";
-static const char* keys =
+const string WinName = "Deep learning object detection in Nvidia";
+const char* keys =
 {
 	"{help h ?| | show help message}{model|| <x.rt> model_trt.engine}{class_names|coco_classes.txt|class names file}{image|| <*.png,jpg,bmp> image file}{video|| <*.mp4>}{path|.| path to file}{wr|0|writing to file}{gpu|1| Default gpu }{end2end|0| Default normal }"
 };
+bool process = true;
+
+typedef struct ObjectF {
+	Mat frame;
+	vector<Object> objects;
+} ObjectF;
+QueueFPS<Mat> framesAndProcesszingQueue;
+counting_semaphore<1> frameSignal(0);
+
+//----------------------------------------------------
+// Frames capturing thread
+thread frameAndProcesszingThread(VideoCapture& cap, Yolo7_normal* yolo7)
+{
+	cout << "Frames and processzing capturing thread" << endl;
+	thread framesAndProcesszingThread([&]() {
+		Mat frame;
+		Mat fclone;
+		//int ee = 0;
+		while (process)
+		{
+			ObjectF objectf;
+		//	ee++;
+			if (cap.grab()) {
+				cap >> frame;
+				if (!frame.empty())
+				{	
+					framesAndProcesszingQueue.push(frame);
+					frameSignal.acquire();
+					this_thread::sleep_for(5ms);
+				}
+				else
+				{
+					cerr << "END or ERROR:video frame empty!" << endl;					
+					break;
+				}
+			}
+			else {
+				cerr << "ERROR: bad grab" << endl;
+				this_thread::sleep_for(100ms);
+			}
+		}
+	});
+	return framesAndProcesszingThread;
+}
 
 // functions
 static void help(int argc, const char** argv)
@@ -36,7 +84,7 @@ int main(int argc, const char** argv) {
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -video=images/images/cat.mp4" // normal, not end2end, gpu, only read video
 		etc.
 	*/
-	cv::CommandLineParser parser(argc, argv, keys);
+	CommandLineParser parser(argc, argv, keys);
 
 	parser.about("Trying commandline parser");
 	help(argc, argv);
@@ -64,7 +112,6 @@ int main(int argc, const char** argv) {
 		cerr << "ERROR: classes file not exist" << endl;
 		return -1;
 	}
-
 
 	string image_name = parser.get<string>("image");	
 	string video_name = parser.get<string>("video");
@@ -125,9 +172,11 @@ int main(int argc, const char** argv) {
 		return -1;
 	}
 
-	Yolo7_normal* yolo7_normal = NULL;
+	
+	Yolo7_normal* yolo7_normal = NULL;	
 	if (!end2end) {
-		yolo7_normal = new Yolo7_normal(classes_path);
+		yolo7_normal = new Yolo7_normal(classes_path, &utils);
+		//(Yolo7_normal*)yolov7 = yolo7_normal;
 		if (!yolo7_normal->readModel(model_path)) {
 			cerr << "ERROR: model read failer:" << model_path << endl;
 			return -1;			
@@ -136,23 +185,8 @@ int main(int argc, const char** argv) {
 	else {
 
 	}
-	/*std::vector<std::string> class_names = utils.LoadNames(class_path);//read classes
-	if (class_names.empty()) {
-		cout << "LoadNames is failed:" << class_path << endl;
-		return false;
-	}
-	if (yolov7.readModel(net, model_path, class_names, config_path, gpu)) {
-		cout << "read net ok!" << endl;
-		net.setPreferableBackend(backend);
-		net.setPreferableTarget(target);
-	}
-	else {
-		cout << "read onnx model failed!";
-		return -1;
-	}
-	*/
 
-	namedWindow(WinName, WINDOW_NORMAL);
+	namedWindow(WinName, WINDOW_AUTOSIZE);
 	VideoCapture cap;
 	VideoWriter video_raw;
 
@@ -173,6 +207,11 @@ int main(int argc, const char** argv) {
 				return -1;
 			}
 			Mat imag = yolo7_normal->drawPreds(img, objects);
+			cout << "Done:" << utils.Timer(false) << "ms" << endl;
+			if (wr) {
+				string filename = filesystem::path(img_path).stem().string();
+				imwrite(filename + "_o.png", imag); // result image to file.
+			}
 			imshow(WinName, imag);
 			waitKey(0);
 		}
@@ -187,25 +226,53 @@ int main(int argc, const char** argv) {
 			return -1;
 		}
 		if (wr) {
-			int frame_width = (int)cap.get(cv::CAP_PROP_FRAME_WIDTH);
-			int frame_height = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+			int frame_width = cap.get(cv::CAP_PROP_FRAME_WIDTH);
+			int frame_height = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
 			string filename = std::filesystem::path(video_path).stem().string();
 			if (!video_raw.open(filename + "_o.mp4", cv::VideoWriter::fourcc('M', 'P', '4', 'V'), 10, Size(frame_width, frame_height))) {
-				cerr << "ERRON: VideoWriter opened failed!" << endl;
-				return -1;
+				cerr << "ERRON:VideoWriter opened failed!" << endl;
+				return 1;
 			}
 		}
+		thread frmThread = frameAndProcesszingThread(cap, yolo7_normal);
+		//std::thread prThread = processingThread(yolov7);
+
+		//Postprocessing and rendering loop
+		while (waitKey(1) < 0) {
+			if (framesAndProcesszingQueue.empty()) {
+				this_thread::sleep_for(20ms);
+				continue;
+			}			
+			Mat frame = framesAndProcesszingQueue.get();
+			utils.Timer(true);
+			vector<Object> objects = yolo7_normal->detect_img(frame);
+			Mat imag = yolo7_normal->drawPreds(frame, objects);	
+			frameSignal.release();
+			//cout << "Done:" << utils.Timer(false) << "ms" << endl;
+			string label = "Inference process time: ";
+			label.append(utils.Timer(false));
+			label.append(" ms");
+			putText(imag, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255));							
+			if (wr) {
+				if (!video_raw.isOpened()) {
+					cout << "ERRON:VideoWriter opened failed!" << endl;
+					return 1;
+				}
+				video_raw << imag;
+			}
+			imshow(WinName, imag);
+		}
+		frameSignal.release();
+		process = false;
+		frmThread.join();		
 	}
-	
-	cout << "Success" << endl;
 	
 	if (cap.isOpened()) {
 		cap.release();
 	}
 	if (video_raw.isOpened()) {
 		video_raw.release();
-	}
-	//system("pause");		
+	}	
 	return 0;
 }
 
