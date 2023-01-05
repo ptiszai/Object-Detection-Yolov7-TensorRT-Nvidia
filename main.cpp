@@ -81,7 +81,7 @@ int main(int argc, const char** argv) {
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg" // normal, not end2end, gpu, only read image
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny.trt -class_names=models/coco_classes.txt -image=images/bus.jpg -end2end=1 -wr=1" // normal, end2end, gpu, created out image bus_e2e.jpg
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg  -wr=1" // normal, not end2end, gpu,  created out image bus_norm.jpg
-		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -video=images/images/cat.mp4" // normal, not end2end, gpu, only read video
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -video=images/car.mp4" // normal, not end2end, gpu, only read video
 		etc.
 	*/
 	CommandLineParser parser(argc, argv, keys);
@@ -208,6 +208,10 @@ int main(int argc, const char** argv) {
 			}
 			Mat imag = yolo7_normal->drawPreds(img, objects);
 			cout << "Done:" << utils.Timer(false) << "ms" << endl;
+			string label = "Inference process time: ";
+			label.append(utils.Timer(false));
+			label.append(" ms");
+			putText(imag, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255));
 			if (wr) {
 				string filename = filesystem::path(img_path).stem().string();
 				imwrite(filename + "_o.png", imag); // result image to file.
