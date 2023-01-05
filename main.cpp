@@ -183,7 +183,8 @@ int main(int argc, const char** argv) {
 		}
 	}
 	else {
-
+		cout << "Under Developing, exit program !!!!!!!!!!!!!!!!!!!!!" << endl;
+		return 1;
 	}
 
 	namedWindow(WinName, WINDOW_AUTOSIZE);

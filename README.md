@@ -1,6 +1,12 @@
-# Object-Detection-Yolov7-TensorRT-Nvidia
- 
+### Object-Detection-Yolov7-TensorRT-Nvidia
+Yolov7 Deep MI TesorRT model process with Nvidia DNN C++ in Windows 10.<br>
+Deep-learning Machine Intelligence Network.<br>
+Base is [Yolov7](https://github.com/WongKinYiu/yolov7)<br>
+TensorRT model format description using for the IoT device: [NVIDIA TensorRT](https://developer.nvidia.com/tensorrt).<br>
 
+![Nvidia](doc/nvidia.png)<br>
+If you compileed embedded Linux, it is used for IoT + Camera, example: [Jetson modules](https://developer.nvidia.com/embedded/jetson-modules).<br>
+![Opencv](doc/opencv.png)<br>
 
 ### Python
 
