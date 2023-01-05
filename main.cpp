@@ -85,9 +85,15 @@ int main(int argc, const char** argv) {
 		etc.
 	*/
 	CommandLineParser parser(argc, argv, keys);
-
-	parser.about("Trying commandline parser");
 	help(argc, argv);
+	string model_name = parser.get<string>("model");
+	if (model_name.empty()) {
+		parser.printMessage();
+		return 1;
+	}
+
+	parser.about("Trying commandline parser");	
+
 	if (parser.has("help"))
 	{
 		parser.printMessage();
@@ -99,7 +105,7 @@ int main(int argc, const char** argv) {
 		path_name = filesystem::current_path().string();
 	}
 
-	string model_name = parser.get<string>("model");
+	//string model_name = parser.get<string>("model");
 	string model_path = path_name + "/" + model_name;
 	if (!filesystem::exists(model_path)) {
 		cerr << "ERROR: model file not exist" << endl;
