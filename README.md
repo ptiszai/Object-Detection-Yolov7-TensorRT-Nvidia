@@ -31,6 +31,11 @@ If you compiled embedded Linux, it is used for IoT + Camera, example: [Jetson mo
 -in Browse to search the "ImageDetector-yolov7-tensorRT.sln" file, and it open that.
 -Build->Build Solution (F7).
 Builded in "./x64/Release/ImageDetector-yolov7-tensorRT.exe".
+- xcopy /Y .\3rdparty\opencv-4.6.0\x64\vc17\bin\opencv_world460.dll .\x64\Release
+  xcopy /Y .\3rdparty\opencv-4.6.0\x64\vc17\bin\opencv_videoio_ffmpeg460_64.dll .\x64\Release
+  xcopy /Y "c:\Program Files\NVIDIA GPU Computing Toolkit\TensorRT-8.5.2.2\lib\nvinfer.dll" .\x64\Release
+  xcopy /Y "c:\Program Files\NVIDIA GPU Computing Toolkit\TensorRT-8.5.2.2\lib\nvinfer_plugin.dll" .\x64\Release
+
 ```
 ## Running the "ImageDetector-yolov7-opencv.exe" app.<br>
 Program arguments: <br>
@@ -53,6 +58,8 @@ YouTube video (click):<br>
 [![YouTube video](https://img.youtube.com/vi/3lF0VBBGiOo/0.jpg)](https://www.youtube.com/watch?v=3lF0VBBGiOo)
 
 </div><br>
+
+Inference time is 50-100 ms per image.
 
 ### Conversion *.onnx model to *.tr model:
 ``` shell
