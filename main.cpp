@@ -15,7 +15,7 @@ using namespace cv;
 const string WinName = "Deep learning object detection in Nvidia";
 const char* keys =
 {
-	"{help h ?| | show help message}{model|| <x.rt> model_trt.engine}{class_names|coco_classes.txt|class names file}{image|| <*.png,jpg,bmp> image file}{video|| <*.mp4>}{path|.| path to file}{wr|0|writing to file}{gpu|1| Default gpu }{end2end|0| Default normal }"
+	"{help h ?| | show help message}{model|| <x.rt> model_trt.engine}{class_names|coco_classes.txt|class names file}{image|| <*.png,jpg,bmp> image file}{videoCamera|| <*.mp4>}{path|.| path to file}{wr|0|writing to file}{gpu|1| Default gpu }{end2end|0| Default normal }"
 };
 bool process = true;
 
@@ -55,7 +55,7 @@ thread frameAndProcesszingThread(VideoCapture& cap, Yolo7_normal* yolo7)
 			}
 			else {
 				cerr << "ERROR: bad grab" << endl;
-				this_thread::sleep_for(100ms);
+				this_thread::sleep_for(50ms);
 			}
 		}
 	});
@@ -81,8 +81,13 @@ int main(int argc, const char** argv) {
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg" // normal, not end2end, gpu, only read image
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny.trt -class_names=models/coco_classes.txt -image=images/bus.jpg -end2end=1 -wr=1" // normal, end2end, gpu, created out image bus_e2e.jpg
 		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg  -wr=1" // normal, not end2end, gpu,  created out image bus_norm.jpg
-		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -video=images/car.mp4" // normal, not end2end, gpu, only read video
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -videoCamera=images/car.mp4" // normal, not end2end, gpu, only read video
+		"ImageDetector-yolov7-tensorRT.exe -model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -videoCamera=cam // normal, not end2end, gpu, camera
 		etc.
+		Visual Studio 2022 Configuration Properties-Debug-Command Arguments:
+		-model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -image=images/bus.jpg -wr=0
+		-model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -videoCamera=images/cars.mp4
+		-model=models/yolov7-tiny-norm.trt -class_names=models/coco_classes.txt -videoCamera=cam
 	*/
 	CommandLineParser parser(argc, argv, keys);
 	help(argc, argv);
@@ -119,8 +124,12 @@ int main(int argc, const char** argv) {
 		return -1;
 	}
 
-	string image_name = parser.get<string>("image");	
-	string video_name = parser.get<string>("video");
+	if (parser.has("videoCamera"))
+	{
+		cout << "Done:" << "videoCamera" << endl;
+	}
+	string videoCam_name = parser.get<string>("videoCamera");
+	string image_name = parser.get<string>("image");		
 	bool wr = (bool)parser.get<int>("wr");
 	bool gpu = (bool)parser.get<int>("gpu");
 	bool end2end = (bool)parser.get<int>("end2end");
@@ -128,6 +137,7 @@ int main(int argc, const char** argv) {
 	string video_path = "";
 	bool image = false;
 	bool mp4 = false;
+	bool camera = false;
 
 	Utils utils;
 
@@ -147,7 +157,7 @@ int main(int argc, const char** argv) {
 			image = true;
 		}
 		else {
-			cerr << "ERROR: image ext. is not png or jpg or bmp" << video_name << endl;
+			cerr << "ERROR: image ext. is not png or jpg or bmp" << videoCam_name << endl;
 			return -1;
 		}
 		if (!filesystem::exists(img_path)) {
@@ -157,21 +167,26 @@ int main(int argc, const char** argv) {
 		cout << "image:" << image_name << endl;
 	}
 	else 
-	if (!video_name.empty()) {
-		video_path = path_name + "/" + video_name;
-		string ext = std::filesystem::path(video_path).extension().string();
-		if (ext == ".mp4") {
-			mp4 = true;
+		if (!videoCam_name.empty()) {
+			if (videoCam_name == "cam") {
+				camera = true;
+				video_path = path_name + "/camera";
+			} else {
+				video_path = path_name + "/" + videoCam_name;
+				string ext = std::filesystem::path(video_path).extension().string();
+				if (ext == ".mp4") {
+					mp4 = true;
+				}
+				else {
+					cerr << "ERROR: video ext. is not mp4" << videoCam_name << endl;
+					return -1;
+				}
+				if (!filesystem::exists(video_path)) {
+					cerr << "ERROR: video file not exist" << endl;
+					return -1;
+				}
+				cout << "video:" << videoCam_name << endl;
 		}
-		else {
-			cerr << "ERROR: video ext. is not mp4" << video_name << endl;
-			return -1;
-		}
-		if (!filesystem::exists(video_path)) {
-			cerr << "ERROR: video file not exist" << endl;
-			return -1;
-		}
-		cout << "video:" << video_name << endl;
 	}
 	else {
 		cerr << "ERROR:image name or video name is empty" << endl;
@@ -229,12 +244,23 @@ int main(int argc, const char** argv) {
 	}
 	else
 	// video
-	if (mp4) {
-		// Open a video file or an image file.		
-		cap.open(video_path);
-		if (!cap.isOpened()) {
-			cerr << "ERRON:Unable to open video" << endl;
-			return -1;
+	if (mp4 || camera) {
+		if (camera) {
+			cap.open(0);
+			if (!cap.isOpened()) {
+				cerr << "ERRON:Unable to open camera" << endl;
+				return -1;
+				cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+				cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+			}
+		} 
+		else {
+			// Open a video file or an image file.		
+			cap.open(video_path);
+			if (!cap.isOpened()) {
+				cerr << "ERRON:Unable to open video" << endl;
+				return -1;
+			}
 		}
 		if (wr) {
 			int frame_width = cap.get(cv::CAP_PROP_FRAME_WIDTH);
